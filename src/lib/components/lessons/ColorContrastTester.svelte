@@ -1,15 +1,53 @@
-<script lang="ts">
-  import { progressStore } from '$lib/stores/progressStore';
+<script context="module" lang="ts">
+  // Este bloque se ejecuta una vez cuando el módulo se carga.
+  // Aquí es donde defines y exportas tipos o valores que otros módulos pueden importar.
+  export type Stage = 'idle' | 'playing' | 'submittedCorrect' | 'submittedIncorrect' /* | 'lessonComplete' etc. */;
+</script>
 
-  let textColor: string = '#FFFFFF';
-  let backgroundColor: string = '#000000';
+<script lang="ts">
+  import { createEventDispatcher, onMount } from 'svelte';
+  import { progressStore } from '$lib/stores/progressStore';
+  import { CheckCircle, XCircle, RotateCcw, Play, ArrowRight } from 'lucide-svelte'; // Iconos
+  import { fly } from 'svelte/transition';
+  
+  
+  // --- Configuración de la Lección/Desafío ---
+  const moduleId = 'design-foundations';
+  const lessonId = 'color-contrast'; // ID de esta lección general
+  // Podríamos tener múltiples desafíos dentro de esta "lección de contraste"
+  // Por ahora, nos enfocamos en el primero.
+  const currentChallengeConfig = {
+    id: 'challenge-1-text-for-given-bg',
+    description: 'Elige un color de texto que logre un contraste AA (4.5:1) con el fondo provisto.',
+    givenBackgroundColor: '#334155', // Un gris azulado oscuro (slate-700)
+    targetRatio: 4.5,
+  };
+
+  const dispatch = createEventDispatcher();
+
+  // --- Estado del Componente ---
+  let stage: Stage = 'idle';
+
+  let textColor: string = '#FFFFFF'; // Color inicial para el texto que el usuario elegirá
+  let backgroundColor: string = currentChallengeConfig.givenBackgroundColor; // Fijo para este desafío
+  
   let contrastRatio: number | null = null;
   let wcagRating: string = '';
+  let isChallengeInternallyCompleted = false; // Para controlar el estado de este desafío específico
 
-  // IDs para el store (deberían coincidir con course-structure.ts)
-  const moduleId = 'design-foundations';
-  const lessonId = 'color-contrast';
-  const challengeId = 'aa-contrast-target'; // ID del desafío dentro de esta lección
+  // Sincronizar con el progressStore para saber si este desafío ya estaba completado
+  onMount(() => {
+    const unsubscribe = progressStore.subscribe(modules => {
+      const module = modules.find(m => m.id === moduleId);
+      const lesson = module?.lessons.find(l => l.id === lessonId);
+      const challengeInStore = lesson?.challenges?.find(c => c.id === currentChallengeConfig.id);
+      if (challengeInStore?.completed) {
+        isChallengeInternallyCompleted = true;
+        stage = 'submittedCorrect'; // Si ya estaba completo, mostrarlo como tal
+      }
+    });
+    return unsubscribe; // Limpiar suscripción al desmontar
+  });
 
   function luminance(r: number, g: number, b: number): number {
     const a = [r, g, b].map((v) => {
@@ -30,146 +68,182 @@
       : null;
   }
 
-  function calculateContrast() {
-    const rgb1 = hexToRgb(textColor);
-    const rgb2 = hexToRgb(backgroundColor);
+  function calculateContrastInternal() {
+    const rgbText = hexToRgb(textColor);
+    const rgbBg = hexToRgb(backgroundColor);
 
-    if (!rgb1 || !rgb2) {
-      contrastRatio = null;
-      wcagRating = 'Colores inválidos';
-      return;
+    if (!rgbText || !rgbBg) {
+      contrastRatio = null; wcagRating = 'Colores inválidos'; return;
     }
-
-    const lum1 = luminance(rgb1.r, rgb1.g, rgb1.b);
-    const lum2 = luminance(rgb2.r, rgb2.g, rgb2.b);
-
-    const brightest = Math.max(lum1, lum2);
-    const darkest = Math.min(lum1, lum2);
+    const lumText = luminance(rgbText.r, rgbText.g, rgbText.b);
+    const lumBg = luminance(rgbBg.r, rgbBg.g, rgbBg.b);
+    const brightest = Math.max(lumText, lumBg);
+    const darkest = Math.min(lumText, lumBg);
     const ratio = (brightest + 0.05) / (darkest + 0.05);
     contrastRatio = parseFloat(ratio.toFixed(2));
 
-    if (contrastRatio >= 7) {
-      wcagRating = 'AAA (Excelente)';
-    } else if (contrastRatio >= 4.5) {
-      wcagRating = 'AA (Bueno)';
-    } else if (contrastRatio >= 3) {
-      wcagRating = 'AA Large Text (Bueno para texto grande)';
+    if (contrastRatio >= 7) wcagRating = 'AAA';
+    else if (contrastRatio >= 4.5) wcagRating = 'AA';
+    else if (contrastRatio >= 3) wcagRating = 'AA Large';
+    else wcagRating = 'Fail';
+  }
+  
+  $: if (textColor && backgroundColor && stage === 'playing') {
+    calculateContrastInternal();
+  }
+
+  // Cada vez que cambies 'stage', también despacha un evento
+  function setStage(newStage: Stage) {
+    stage = newStage;
+    dispatch('stageChange', { currentStage: stage });
+  }
+
+  // --- Acciones del Usuario ---
+  function startGame() {
+    setStage('playing');
+    textColor = '#FFFFFF'; // Resetear color de texto por si acaso
+    backgroundColor = currentChallengeConfig.givenBackgroundColor; // Asegurar fondo correcto
+    calculateContrastInternal(); // Calcular contraste inicial con el texto por defecto
+  }
+
+  function handleSubmit() {
+    if (stage !== 'playing' || contrastRatio === null) return;
+
+    if (contrastRatio >= currentChallengeConfig.targetRatio) {
+      setStage('submittedCorrect');
+      isChallengeInternallyCompleted = true;
+      progressStore.completeChallenge(moduleId, lessonId, currentChallengeConfig.id);
+    } else {
+      setStage('submittedIncorrect');
     }
-     else {
-      wcagRating = 'Fail (Insuficiente)';
-    }
   }
 
-  $: if (textColor && backgroundColor) {
-    calculateContrast();
+  function handleRetry() {
+    setStage('playing');
+    // No resetear textColor, permitir al usuario seguir ajustando el que tenía
+    calculateContrastInternal(); // Recalcular por si acaso
   }
 
-  calculateContrast();
-
-// --- Estado del Desafío ---
-  let challengeTargetRatio = 4.5;
-  let challengeCompleted = false;
-  let showExtraInfo = false;
-
-  // Sincronizar challengeCompleted con el store al montar
-  progressStore.subscribe(modules => {
-    const module = modules.find(m => m.id === moduleId);
-    const lesson = module?.lessons.find(l => l.id === lessonId);
-    const challenge = lesson?.challenges?.find(c => c.id === challengeId);
-    if (challenge) {
-        challengeCompleted = challenge.completed;
-        if (challengeCompleted) showExtraInfo = true; // Mostrar info si ya estaba completado
-    }
-  });
-
-  function checkChallenge() {
-    if (contrastRatio !== null && contrastRatio >= challengeTargetRatio) {
-      if (!challengeCompleted) { // Solo si no está ya marcado como completo localmente
-        progressStore.completeChallenge(moduleId, lessonId, challengeId);
-        // El estado local 'challengeCompleted' y 'showExtraInfo' se actualizará reactivamente por la suscripción al store
-      }
-    }
-    // else { // Si el usuario cambia los colores y ya no cumple
-    //   Si queremos que se pueda "descompletar" un desafío, necesitaríamos más lógica aquí y en el store
-    // }
+  function handleNextChallenge() {
+    // Aquí iría la lógica para cargar el siguiente desafío
+    console.log("Ir al siguiente desafío (lógica pendiente)");
+    // Por ahora, podríamos resetear a 'idle' para simular
+    setStage('idle');
+    isChallengeInternallyCompleted = false; // Asumiendo que el siguiente no está completo
+    // Deberías cargar la configuración del siguiente desafío y resetear 'textColor', 'backgroundColor'
   }
 
-  $: if (textColor && backgroundColor) {
-    calculateContrast();
-  }
-
-  $: if (contrastRatio !== null) {
-    checkChallenge();
-  }
-
-  calculateContrast();
 </script>
 
-<div class="p-6 max-w-md mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-md dark:shadow-2xl space-y-4">
-  <h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-100">Test de Contraste de Color</h2>
+<div class="p-4 md:p-6 max-w-lg mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-2xl space-y-4">
+  <h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-1">Test de Contraste</h2>
+  <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+    {currentChallengeConfig.description}
+  </p>
 
-  <!-- Sección del Desafío -->
-  <div class="p-4 border rounded-md
-    {challengeCompleted ? 'bg-green-50 dark:bg-green-900/50 border-green-500 dark:border-green-600' : 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'}">
-    <h3 class="text-lg font-semibold {challengeCompleted ? 'text-green-700 dark:text-green-200' : 'text-blue-700 dark:text-blue-300'}">
-      Desafío: {!challengeCompleted ? `Alcanza un ratio de ${challengeTargetRatio}:1 (AA)` : '¡Desafío Completado!'}
-    </h3>
-    {#if challengeCompleted && showExtraInfo}
-      <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">
-        ¡Excelente! Lograr un contraste AA asegura que tu texto sea legible...
-      </p>
-    {/if}
-  </div>
-
-  <div class="space-y-2">
-    <label for="textColor" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Color de Texto:</label>
-    <input type="color" id="textColor" bind:value={textColor} class="w-full h-10 p-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700">
-    <!-- Nota: los inputs type="color" pueden tener su propio estilo de SO/navegador para el picker, pero el borde y fondo del input en sí los podemos estilizar -->
-    <span class="text-xs text-gray-500 dark:text-gray-400">{textColor}</span>
-  </div>
-
-  <div class="space-y-2">
-    <label for="backgroundColor" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Color de Fondo:</label>
-    <input type="color" id="backgroundColor" bind:value={backgroundColor} class="w-full h-10 p-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700">
-    <span class="text-xs text-gray-500 dark:text-gray-400">{backgroundColor}</span>
-  </div>
-
-  <!-- El área de previsualización usa los colores seleccionados, por lo que no necesita clases dark: específicas para sus colores internos -->
-  <div class="p-8 rounded-md text-center border border-gray-200 dark:border-gray-700" style="background-color: {backgroundColor}; color: {textColor};">
-    <!-- Añadí un borde sutil al área de previsualización para definirla mejor, especialmente si los colores elegidos son similares al fondo del contenedor -->
-    <p class="text-lg font-semibold">Texto de Ejemplo</p>
-    <p class="text-sm">Así se ve el texto con estos colores.</p>
-  </div>
-
-  {#if contrastRatio !== null}
-    <div class="mt-4 p-3 rounded-md"
-         class:bg-green-100={contrastRatio >= 4.5}
-         class:dark:bg-green-800={contrastRatio >= 4.5}
-         class:text-green-700={contrastRatio >= 4.5}
-         class:dark:text-green-200={contrastRatio >= 4.5}
-
-         class:bg-yellow-100={contrastRatio < 4.5 && contrastRatio >= 3}
-         class:dark:bg-yellow-800={contrastRatio < 4.5 && contrastRatio >= 3}
-         class:text-yellow-700={contrastRatio < 4.5 && contrastRatio >= 3}
-         class:dark:text-yellow-200={contrastRatio < 4.5 && contrastRatio >= 3}
-
-         class:bg-red-100={contrastRatio < 3}
-         class:dark:bg-red-800={contrastRatio < 3}
-         class:text-red-700={contrastRatio < 3}
-         class:dark:text-red-200={contrastRatio < 3}
+  {#if stage === 'idle'}
+    <button
+      on:click={startGame}
+      class="w-full flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-semibold rounded-lg shadow-md transition-colors duration-150"
     >
-      <p class="font-semibold">Ratio de Contraste: <span class="font-bold">{contrastRatio}</span></p>
-      <p>Nivel WCAG: <span class="font-bold">{wcagRating}</span></p>
-    </div>
-  {:else}
-    <p class="mt-4 text-sm text-gray-600 dark:text-gray-400">Calculando o colores inválidos...</p>
+      <Play size={20} class="mr-2"/> Empezar Desafío
+    </button>
   {/if}
 
-   <div class="text-xs text-gray-600 dark:text-gray-400 mt-4">
-    <p class="font-semibold"><strong>Niveles WCAG:</strong></p> <!-- Hice "Niveles WCAG" semibold también para consistencia -->
+  {#if stage === 'playing' || stage === 'submittedIncorrect' || stage === 'submittedCorrect'}
+    <div in:fly={{ delay: 200, duration: 400, y: 30 }} class="space-y-3"> <!-- Contenedor para animar en conjunto -->
+        <div>
+        <label for="challengeTextColor" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tu Color de Texto:</label>
+        <input
+            type="color"
+            id="challengeTextColor"
+            bind:value={textColor}
+            class="w-full h-10 p-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
+            disabled={stage === 'submittedCorrect' || stage === 'submittedIncorrect'}
+        >
+        <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">{textColor}</span>
+        </div>
+        <div>
+        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color de Fondo (Dado):</p>
+        <div class="w-full h-10 p-1 border border-gray-300 dark:border-gray-600 rounded-md flex items-center px-2" style="background-color: {backgroundColor};">
+            <span class="text-xs" style="color: {textColor}; mix-blend-mode: difference;">{backgroundColor}</span>
+        </div>
+        </div>
+    </div>
+
+    <!-- Previsualización -->
+    <div
+        in:fly={{ delay: 200, duration: 400, y: 30 }}
+        class="mt-4 p-6 rounded-md text-center border border-gray-200 dark:border-gray-700"
+        style="background-color: {backgroundColor}; color: {textColor};"
+    >
+        <p class="text-lg font-semibold">Texto de Ejemplo</p>
+        <p class="text-sm">Así se ve el texto con estos colores.</p>
+        {#if contrastRatio !== null && (stage === 'submittedCorrect' || stage === 'submittedIncorrect')}
+        <p class="mt-3 pt-2 border-t border-dashed text-xs { (contrastRatio >= currentChallengeConfig.targetRatio) ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }">
+            Ratio Actual: {contrastRatio}:1 ({wcagRating})
+        </p>
+        {/if}
+    </div>
+    {/if}
+
+  <!-- Feedback y Acciones Post-Envío -->
+  {#if stage === 'submittedIncorrect'}
+    <div in:fly={{ delay: 200, duration: 400, y: 30 }} class="mt-4 p-3 rounded-md bg-red-100 dark:bg-red-800/50 text-red-700 dark:text-red-200 border border-red-300 dark:border-red-600">
+      <div class="flex items-center">
+        <XCircle size={20} class="mr-2 shrink-0"/>
+        <p class="font-semibold">Contraste insuficiente. El objetivo es {currentChallengeConfig.targetRatio}:1 o mayor.</p>
+      </div>
+    </div>
+    <button
+      on:click={handleRetry}
+      class="w-full mt-3 flex items-center justify-center px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg shadow-md"
+    >
+      <RotateCcw size={20} class="mr-2"/> Volver a Intentar
+    </button>
+  {/if}
+
+  {#if stage === 'submittedCorrect'}
+    <div in:fly={{ delay: 200, duration: 400, y: 30 }} class="mt-4 p-3 rounded-md bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-200 border border-green-300 dark:border-green-600">
+       <div class="flex items-center">
+        <CheckCircle size={20} class="mr-2 shrink-0"/>
+        <p class="font-semibold">¡Correcto! Has logrado un contraste de {contrastRatio}:1.</p>
+      </div>
+      <p class="text-sm mt-2 pl-1">
+        Este nivel de contraste (AA) es fundamental para asegurar que tus diseños sean accesibles.
+        Considera cómo el color del texto y el fondo interactúan para afectar la legibilidad.
+      </p>
+    </div>
+    <!-- Aquí podrías tener un botón para "Siguiente Desafío" o "Finalizar Lección" -->
+    <button
+      on:click={handleNextChallenge}
+      class="w-full mt-3 flex items-center justify-center px-6 py-3 bg-teal-500 hover:bg-teal-600 text-white font-semibold rounded-lg shadow-md"
+    >
+      Siguiente Desafío <ArrowRight size={20} class="ml-2"/>
+    </button>
+  {/if}
+
+  <!-- Botón de Enviar (visible solo durante 'playing') -->
+  {#if stage === 'playing'}
+    <div in:fly={{ delay: 200, duration: 400, y: 30 }}>
+        <button
+        on:click={handleSubmit}
+        disabled={contrastRatio === null}
+        class="w-full mt-4 px-6 py-3 bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white font-semibold rounded-lg shadow-md disabled:opacity-50"
+        >
+        Verificar Respuesta
+        </button>
+    </div>
+  {/if}
+
+   <!-- Información General de Niveles WCAG (siempre visible o según se necesite) -->
+   {#if stage !== 'idle'}
+   <div class="text-xs text-gray-600 dark:text-gray-400 mt-6 pt-3 border-t border-gray-200 dark:border-gray-700">
+    <p class="font-semibold"><strong>Recordatorio Niveles WCAG:</strong></p>
     <ul class="list-disc list-inside">
-      <li><strong>AA:</strong> Ratio de al menos 4.5:1 (texto normal) o 3:1 (texto grande).</li>
-      <li><strong>AAA:</strong> Ratio de al menos 7:1 (texto normal) o 4.5:1 (texto grande).</li>
+      <li><strong>AA (Texto Normal):</strong> Ratio ≥ 4.5:1</li>
+      <li><strong>AAA (Texto Normal):</strong> Ratio ≥ 7:1</li>
     </ul>
   </div>
+  {/if}
 </div>

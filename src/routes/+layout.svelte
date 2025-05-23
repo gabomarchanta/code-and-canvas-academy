@@ -86,17 +86,16 @@
 					aria-disabled={lesson.status === 'locked' || lesson.status === 'todo'}
 				>
 					{#if lesson.status === 'completed'}
-					<CheckCircleIcon size={16} class="mr-3 text-green-500 dark:text-green-400" />
+						<CheckCircleIcon size={16} class="mr-3 text-green-500 dark:text-green-400" />
 					{:else if lesson.status === 'locked'}
-					<Lock size={16} class="mr-3 text-gray-400 dark:text-gray-500" />
+						<Lock size={16} class="mr-3 text-gray-400 dark:text-gray-500" />
 					{:else if lesson.status === 'current'}
-					<CurrentIcon size={16} class="mr-3 text-blue-500 dark:text-blue-400" /> <!-- Zap o un icono de 'en progreso' -->
+						<CurrentIcon size={16} class="mr-3 text-blue-500 dark:text-blue-400" />
 					{:else if lesson.status === 'unlocked'}
-					<!-- Podrías usar el icono original de la lección o uno genérico de 'desbloqueado' -->
-					{#if lesson.icon} <svelte:component this={lesson.icon} size={16} class="mr-3" />
-					{:else} <CircleDotDashed size={16} class="mr-3 text-gray-500 dark:text-gray-400"/> {/if}
+						{#if lesson.icon} <svelte:component this={lesson.icon} size={16} class="mr-3 opacity-75" /> <!-- Opacidad para diferenciar de 'current' -->
+						{:else} <CircleDotDashed size={16} class="mr-3 text-gray-500 dark:text-gray-400"/> {/if}
 					{:else if lesson.status === 'todo'}
-					<Construction size={16} class="mr-3 text-gray-400 dark:text-gray-500"/>
+						<Construction size={16} class="mr-3 text-gray-400 dark:text-gray-500"/>
 					{/if}
 
 					{lesson.title}

@@ -33,9 +33,27 @@ export const modules: Module[] = [
     icon: Palette,
     status: 'current', // O 'unlocked' o 'active'
     lessons: [
-      { id: 'color-contrast', title: 'Contraste de Color', path: '/design-foundations/color-contrast', icon: CheckCircle, status: 'completed' }, // Antes 'done'
-      { id: 'alignment', title: 'Alineación', path: '/design-foundations/alignment', icon: AlignHorizontalJustifyStart, status: 'current' }, // Asegúrate que el icono sea el correcto
-      { id: 'proximity', title: 'Proximidad', path: '/design-foundations/proximity', icon: Zap, status: 'todo' },
+        {
+            id: 'color-contrast',
+            title: 'Contraste de Color',
+            path: '/design-foundations/color-contrast',
+            icon: CheckCircle,
+            status: 'current', // Debería empezar como 'current' o 'unlocked'
+            challenges: [
+                { id: 'challenge-1-text-for-given-bg', description: 'Elige un color de texto...', completed: false }
+                // Puedes añadir más objetos de desafío aquí para el futuro
+            ]
+        },
+        {
+            id: 'alignment',
+            title: 'Alineación',
+            path: '/design-foundations/alignment',
+            icon: AlignHorizontalJustifyStart, // Asegúrate que este es el icono que quieres
+            status: 'locked', // O 'todo' si no está listo y no depende de otro
+            challenges: [ // Añadir esto también si tendrá desafíos
+                { id: 'align-left-all', description: 'Alinea todos los bloques a la izquierda', completed: false }
+            ]
+        },
     ]
   },
   {

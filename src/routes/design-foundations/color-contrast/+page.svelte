@@ -1,5 +1,12 @@
 <script lang="ts">
   import ColorContrastTester from '$lib/components/lessons/ColorContrastTester.svelte';
+  import type { Stage } from '$lib/components/lessons/ColorContrastTester.svelte';
+
+  let currentTesterStage: Stage = 'idle'; // Estado inicial
+
+  function handleStageChange(event: CustomEvent<{ currentStage: Stage }>) {
+    currentTesterStage = event.detail.currentStage;
+  }
 </script>
 
 <div class="container mx-auto py-8 px-4"> <!-- El fondo general de la página ya se maneja en +layout.svelte -->
@@ -10,6 +17,7 @@
     </p>
   </header>
 
+  {#if currentTesterStage === 'idle'}
   <section class="mb-8 p-6 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 rounded-lg">
     <!-- Nota: dark:bg-blue-900/30 y dark:border-blue-700/50 usan opacidad para hacerlo más sutil si el azul oscuro es muy fuerte -->
     <!-- Alternativamente, puedes usar colores más oscuros sólidos como dark:bg-gray-800 y dark:border-gray-700 si prefieres una apariencia menos colorida en modo oscuro para estos bloques -->
@@ -25,9 +33,11 @@
       <li>Utilizar una herramienta interactiva para probar tus propias combinaciones.</li>
     </ul>
   </section>
+  {/if}
 
   <ColorContrastTester /> <!-- Asumiremos que ColorContrastTester maneja su propio modo oscuro internamente si es necesario, o que su diseño es neutro -->
-
+  
+  {#if currentTesterStage === 'submittedCorrect' || currentTesterStage === 'lessonComplete'}
   <section class="mt-12 p-6 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
     <h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200 mb-3">Reflexión</h2>
     <p class="text-gray-700 dark:text-gray-300">
@@ -36,6 +46,7 @@
       todos los usuarios, especialmente en diferentes condiciones de iluminación.
     </p>
   </section>
+  {/if}
 
    <!-- Podrías añadir un botón "Siguiente Lección" aquí en el futuro -->
    <!-- Ejemplo de botón con modo oscuro:
