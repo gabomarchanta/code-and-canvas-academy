@@ -1,11 +1,14 @@
+<!-- src/routes/design-foundations/color-contrast/+page.svelte -->
 <script lang="ts">
   import ColorContrastTester from '$lib/components/lessons/ColorContrastTester.svelte';
-  import type { Stage } from '$lib/components/lessons/ColorContrastTester.svelte';
+  import type { Stage as TesterStageType } from '$lib/components/lessons/ColorContrastTester.svelte';
+  import { fly } from 'svelte/transition';
 
-  let currentTesterStage: Stage = 'idle'; // Estado inicial
+  let currentTesterStage: TesterStageType = 'idle'; // Estado inicial
 
-  function handleStageChange(event: CustomEvent<{ currentStage: Stage }>) {
+  function handleStageChange(event: CustomEvent<{ currentStage: TesterStageType }>) {
     currentTesterStage = event.detail.currentStage;
+    console.log("Page stage updated to:", currentTesterStage); // Para debug
   }
 </script>
 
@@ -18,7 +21,10 @@
   </header>
 
   {#if currentTesterStage === 'idle'}
-  <section class="mb-8 p-6 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 rounded-lg">
+  <section class="mb-8 p-6 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 rounded-lg"
+    in:fly={{ y: -20, duration: 300 }}
+    out:fly={{ y: -20, duration: 200 }}
+  >
     <!-- Nota: dark:bg-blue-900/30 y dark:border-blue-700/50 usan opacidad para hacerlo más sutil si el azul oscuro es muy fuerte -->
     <!-- Alternativamente, puedes usar colores más oscuros sólidos como dark:bg-gray-800 y dark:border-gray-700 si prefieres una apariencia menos colorida en modo oscuro para estos bloques -->
     <h2 class="text-2xl font-semibold text-blue-700 dark:text-blue-300 mb-3">¿Qué aprenderás?</h2>
@@ -35,10 +41,13 @@
   </section>
   {/if}
 
-  <ColorContrastTester /> <!-- Asumiremos que ColorContrastTester maneja su propio modo oscuro internamente si es necesario, o que su diseño es neutro -->
+  <ColorContrastTester on:stageChange={handleStageChange} /> <!-- Asumiremos que ColorContrastTester maneja su propio modo oscuro internamente si es necesario, o que su diseño es neutro -->
   
   {#if currentTesterStage === 'submittedCorrect' || currentTesterStage === 'lessonComplete'}
-  <section class="mt-12 p-6 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+  <section class="mt-12 p-6 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+    in:fly={{ y: -20, duration: 300 }}
+    out:fly={{ y: -20, duration: 200 }}
+  >
     <h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200 mb-3">Reflexión</h2>
     <p class="text-gray-700 dark:text-gray-300">
       Ahora que has jugado con el contraste, piensa en cómo aplicarás este conocimiento en tus futuros proyectos.

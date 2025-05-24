@@ -1,7 +1,8 @@
+<!-- src/lib/components/lessons/ColorContrastTester.svelte -->
 <script context="module" lang="ts">
   // Este bloque se ejecuta una vez cuando el módulo se carga.
   // Aquí es donde defines y exportas tipos o valores que otros módulos pueden importar.
-  export type Stage = 'idle' | 'playing' | 'submittedCorrect' | 'submittedIncorrect' /* | 'lessonComplete' etc. */;
+  export type Stage = 'idle' | 'playing' | 'submittedCorrect' | 'submittedIncorrect' | 'lessonComplete';
 </script>
 
 <script lang="ts">
@@ -9,6 +10,7 @@
   import { progressStore } from '$lib/stores/progressStore';
   import { CheckCircle, XCircle, RotateCcw, Play, ArrowRight } from 'lucide-svelte'; // Iconos
   import { fly } from 'svelte/transition';
+  import VanillaColorPicker from '$lib/components/ui/VanillaColorPicker.svelte';
   
   
   // --- Configuración de la Lección/Desafío ---
@@ -153,21 +155,21 @@
   {#if stage === 'playing' || stage === 'submittedIncorrect' || stage === 'submittedCorrect'}
     <div in:fly={{ delay: 200, duration: 400, y: 30 }} class="space-y-3"> <!-- Contenedor para animar en conjunto -->
         <div>
-        <label for="challengeTextColor" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tu Color de Texto:</label>
-        <input
-            type="color"
-            id="challengeTextColor"
-            bind:value={textColor}
-            class="w-full h-10 p-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
-            disabled={stage === 'submittedCorrect' || stage === 'submittedIncorrect'}
-        >
-        <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">{textColor}</span>
+          <label for="challengeTextColor" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tu Color de Texto:</label>
+          <!-- Aquí el VanillaColorPicker -->
+          <div class="p-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 mx-auto w-max">
+              <VanillaColorPicker
+                  bind:color={textColor}
+                  disabled={stage === 'submittedCorrect' || stage === 'submittedIncorrect'}
+              />
+          </div>
+          <span class="text-xs text-gray-500 dark:text-gray-400 ml-1 text-center block mt-1">{textColor}</span>
         </div>
         <div>
-        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color de Fondo (Dado):</p>
-        <div class="w-full h-10 p-1 border border-gray-300 dark:border-gray-600 rounded-md flex items-center px-2" style="background-color: {backgroundColor};">
-            <span class="text-xs" style="color: {textColor}; mix-blend-mode: difference;">{backgroundColor}</span>
-        </div>
+          <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color de Fondo (Dado):</p>
+          <div class="w-full h-10 p-1 border border-gray-300 dark:border-gray-600 rounded-md flex items-center px-2" style="background-color: {backgroundColor};">
+              <span class="text-xs" style="color: {textColor};">{backgroundColor}</span>
+          </div>
         </div>
     </div>
 

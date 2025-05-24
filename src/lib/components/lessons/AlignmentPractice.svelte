@@ -1,178 +1,259 @@
+<script context="module" lang="ts">
+  export type Stage = 'idle' | 'playing' | 'submittedCorrect' | 'submittedIncorrect' | 'allChallengesComplete';
+</script>
+
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { AlignLeft, AlignCenterHorizontal, AlignRight, AlignStartHorizontal, AlignCenterVertical, AlignEndHorizontal, RotateCcw } from 'lucide-svelte'; // Iconos
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+  import { progressStore } from '$lib/stores/progressStore';
+  import type { Challenge as ChallengeData } from '$lib/course-structure';
+  import { 
+    AlignLeft, AlignCenterHorizontal, AlignRight, AlignStartHorizontal,
+    AlignCenterVertical, AlignEndHorizontal, RotateCcw, Play, CheckCircle, XCircle, ArrowRight 
+  } from 'lucide-svelte'; // Iconos
+  import { fly } from 'svelte/transition';
+  import { writable, type Unsubscriber } from 'svelte/store';
+  import Button from '$lib/components/ui/Button.svelte';
+  import FeedbackMessage from '$lib/components/ui/FeedbackMessage.svelte';
 
-  interface Box {
-    id: number;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    initialX: number;
-    initialY: number;
-    color: string;
-  }
+  
+  // --- Configuración de la Lección/Desafío ---
+  const moduleId = 'design-foundations';
+  const lessonId = 'alignment';
 
-  let containerWidth = 500; // Ancho del contenedor de práctica
-  let containerHeight = 300; // Alto del contenedor de práctica
+  const dispatch = createEventDispatcher();
 
-  let boxes: Box[] = [
-    { id: 1, x: 50, y: 30, width: 80, height: 100, initialX: 50, initialY: 30, color: 'bg-sky-500' },
-    { id: 2, x: 150, y: 80, width: 100, height: 60, initialX: 150, initialY: 80, color: 'bg-emerald-500' },
-    { id: 3, x: 280, y: 50, width: 60, height: 120, initialX: 280, initialY: 50, color: 'bg-amber-500' },
-    { id: 4, x: 380, y: 100, width: 90, height: 80, initialX: 380, initialY: 100, color: 'bg-rose-500' },
+  // --- Estado del Componente ---
+  let stage: Stage = 'idle';
+  let allLessonChallenges: ChallengeData[] = []; // Se cargará desde el store
+  let currentChallengeIndex = 0;
+  let currentChallenge = writable<ChallengeData | null>(null); // Store local para el desafío actual
+  
+  interface Box { id: number; x: number; y: number; width: number; height: number; initialX: number; initialY: number; color: string; }
+  let boxes: Box[] = []; // Se inicializará para cada desafío
+  const initialBoxConfigs: Box[][] = [ // Diferentes configuraciones de cajas para cada desafío
+    [ // Desafío 1 (Alinear Izquierda)
+      { id: 1, x: 50,  y: 30,  width: 80, height: 100, initialX: 50,  initialY: 30,  color: 'bg-sky-500' },
+      { id: 2, x: 180, y: 80,  width: 100,height: 60,  initialX: 180, initialY: 80,  color: 'bg-emerald-500' },
+      { id: 3, x: 80,  y: 150, width: 60, height: 120, initialX: 80,  initialY: 150, color: 'bg-amber-500' },
+    ],
+    [ // Desafío 2 (Centrar H) - podrían ser las mismas cajas pero con otra tarea
+      { id: 1, x: 30, y: 50, width: 70, height: 90, initialX: 30, initialY: 50, color: 'bg-sky-500' },
+      { id: 2, x: 150, y: 100, width: 120, height: 50, initialX: 150, initialY: 100, color: 'bg-emerald-500' },
+      { id: 3, x: 250, y: 30, width: 50, height: 150, initialX: 250, initialY: 30, color: 'bg-amber-500' },
+    ],
+    [ // Desafío 3 (Alinear Arriba)
+      { id: 1, x: 50,  y: 80,  width: 80, height: 100, initialX: 50,  initialY: 80,  color: 'bg-sky-500' },
+      { id: 2, x: 180, y: 30,  width: 100,height: 60,  initialX: 180, initialY: 30,  color: 'bg-emerald-500' },
+      { id: 3, x: 80,  y: 120, width: 60, height: 120, initialX: 80,  initialY: 120, color: 'bg-amber-500' },
+    ]
   ];
 
-  // --- Estado del Desafío ---
-  let alignmentChallengeCompleted = false;
-  let showAlignmentExtraInfo = false;
 
-  function checkAlignmentChallenge() {
-    if (boxes.length < 2) { // Necesitas al menos 2 cajas para un desafío de alineación significativo
-      alignmentChallengeCompleted = true; // O no tener desafío si hay pocas cajas
+  let containerWidth = 400;
+  let containerHeight = 280;
+  let practiceArea: HTMLElement;
+  
+  let progressUnsubscriber: Unsubscriber;
+
+  onMount(() => {
+    progressUnsubscriber = progressStore.subscribe(modules => {
+      const module = modules.find(m => m.id === moduleId);
+      const lesson = module?.lessons.find(l => l.id === lessonId);
+      if (lesson?.challenges) {
+        allLessonChallenges = JSON.parse(JSON.stringify(lesson.challenges)); // Copia profunda
+        
+        // Encontrar el primer desafío no completado para empezar
+        const firstUncompletedIndex = allLessonChallenges.findIndex(c => !c.completed);
+        currentChallengeIndex = firstUncompletedIndex !== -1 ? firstUncompletedIndex : allLessonChallenges.length;
+
+        if (currentChallengeIndex < allLessonChallenges.length) {
+          currentChallenge.set(allLessonChallenges[currentChallengeIndex]);
+          loadChallenge(currentChallengeIndex);
+          if(stage === 'idle' && allLessonChallenges[currentChallengeIndex].completed){
+             // Si el desafío actual ya estaba completo, pero la lección no (quizás recargó)
+             // Se podría avanzar o mostrar como completo. Por ahora, lo dejamos en idle para que pulse "Empezar"
+          } else if (allLessonChallenges[currentChallengeIndex].completed) {
+             stage = 'submittedCorrect'; // Si ya estaba completo, ir directo a ese estado
+          }
+        } else {
+          stage = 'allChallengesComplete'; // Todos los desafíos de esta lección ya están hechos
+        }
+      }
+    });
+    // dispatch('stageChange', { currentStage: stage }); // Despachar estado inicial
+    return () => {
+      if (progressUnsubscriber) progressUnsubscriber();
+    };
+  });
+
+  function loadChallenge(index: number) {
+    if (index < 0 || index >= allLessonChallenges.length || index >= initialBoxConfigs.length) {
+      console.error("Índice de desafío inválido o falta configuración de cajas.");
+      stage = 'allChallengesComplete'; // No hay más desafíos o config
+      dispatch('stageChange', { currentStage: stage });
       return;
     }
-    // Condición: Todos los boxes tienen la misma coordenada X
-    const firstBoxX = boxes[0].x;
-    const allAlignedLeft = boxes.every(box => Math.abs(box.x - firstBoxX) < 1); // Usamos una pequeña tolerancia por si hay errores de flotantes
+    currentChallenge.set(allLessonChallenges[index]);
+    // Resetear cajas a la configuración inicial para ESTE desafío
+    boxes = JSON.parse(JSON.stringify(initialBoxConfigs[index])); // Copia profunda
+    stage = allLessonChallenges[index].completed ? 'submittedCorrect' : 'idle';
+    dispatch('stageChange', { currentStage: stage });
+  }
 
-    if (allAlignedLeft) {
-      if (!alignmentChallengeCompleted) {
-        alignmentChallengeCompleted = true;
-        showAlignmentExtraInfo = true;
-        console.log("¡Desafío de Alineación Izquierda completado!");
-      }
-    } else {
-      // Opcional: resetear si el usuario desalinea después de completar
-      // alignmentChallengeCompleted = false;
-      // showAlignmentExtraInfo = false;
+  function setStage(newStage: Stage) {
+    stage = newStage;
+    dispatch('stageChange', { currentStage: stage });
+  }
+
+  function startGame() {
+    if (!$currentChallenge) return;
+    // Asegurar que las cajas estén en su posición inicial para el desafío actual
+    boxes = JSON.parse(JSON.stringify(initialBoxConfigs[currentChallengeIndex]));
+    setStage('playing');
+  }
+
+  // --- Lógica de Alineación (simplificada, ya la tienes) ---
+  function alignLeft() { if (boxes.length === 0) return; const minX = boxes[0].x; boxes = boxes.map(box => ({ ...box, x: minX })); }
+  function alignHorizontalCenter() { if (boxes.length === 0) return; const contCenterX = containerWidth / 2; boxes = boxes.map(box => ({ ...box, x: contCenterX - box.width / 2 })); }
+  function alignRight() { if (boxes.length === 0) return; const maxX = containerWidth - boxes[0].width; boxes = boxes.map(box => ({ ...box, x: maxX })); }
+  function alignTop() { if (boxes.length === 0) return; const minY = boxes[0].y; boxes = boxes.map(box => ({ ...box, y: minY })); }
+  function alignVerticalCenter() { if (boxes.length === 0) return; const contCenterY = containerHeight / 2; boxes = boxes.map(box => ({ ...box, y: contCenterY - box.height / 2 })); }
+  function alignBottom() { if (boxes.length === 0) return; const maxY = containerHeight - boxes[0].height; boxes = boxes.map(box => ({ ...box, y: maxY })); }
+
+  // --- Verificación del Desafío ---
+  function checkChallengeSuccess(): boolean {
+    if (!$currentChallenge || boxes.length === 0) return false;
+
+    const target = ($currentChallenge as any).targetAlignment; // Asumimos que existe esta prop
+
+    switch (target) {
+      case 'left':
+        const firstBoxX = boxes[0].x;
+        return boxes.every(box => Math.abs(box.x - firstBoxX) < 1);
+      case 'h-center':
+        const contCenterX = containerWidth / 2;
+        return boxes.every(box => Math.abs((box.x + box.width / 2) - contCenterX) < 1);
+      case 'top':
+        const firstBoxY = boxes[0].y;
+        return boxes.every(box => Math.abs(box.y - firstBoxY) < 1);
+      // TODO: Añadir casos para 'right', 'v-center', 'bottom'
+      default:
+        return false;
     }
   }
 
-  // --- Funciones de Alineación ---
-  function alignLeft() {
-    if (boxes.length === 0) return;
-    const minX = Math.min(...boxes.map(b => b.x));
-    boxes = boxes.map(box => ({ ...box, x: minX }));
-    boxes = [...boxes]; checkAlignmentChallenge();
+  function handleSubmit() {
+    if (stage !== 'playing' || !$currentChallenge) return;
+
+    if (checkChallengeSuccess()) {
+      setStage('submittedCorrect');
+      progressStore.completeChallenge(moduleId, lessonId, $currentChallenge.id);
+    } else {
+      setStage('submittedIncorrect');
+    }
   }
 
-  function alignHorizontalCenter() {
-    if (boxes.length === 0) return;
-    // Tomamos el centro del primer box como referencia para simplificar
-    // Una implementación más robusta calcularía el centro del grupo
-    const centerX = boxes[0].x + boxes[0].width / 2;
-    boxes = boxes.map(box => ({ ...box, x: centerX - box.width / 2 }));
-    boxes = [...boxes]; checkAlignmentChallenge();
+  function handleRetry() {
+    // Resetear cajas a la posición inicial del desafío actual
+    boxes = JSON.parse(JSON.stringify(initialBoxConfigs[currentChallengeIndex]));
+    setStage('playing');
   }
 
-  function alignRight() {
-    if (boxes.length === 0) return;
-    const maxX = Math.max(...boxes.map(b => b.x + b.width));
-    boxes = boxes.map(box => ({ ...box, x: maxX - box.width }));
-    boxes = [...boxes]; checkAlignmentChallenge();
+  function handleNextChallenge() {
+    if (currentChallengeIndex < allLessonChallenges.length - 1) {
+      currentChallengeIndex++;
+      loadChallenge(currentChallengeIndex);
+    } else {
+      setStage('allChallengesComplete');
+      // Aquí se podría llamar a progressStore.completeLesson si no se hace automáticamente
+      // basado en todos los desafíos completados.
+      console.log("Todos los desafíos de alineación completados!");
+    }
   }
-
-  function alignTop() {
-     if (boxes.length === 0) return;
-    const minY = Math.min(...boxes.map(b => b.y));
-    boxes = boxes.map(box => ({ ...box, y: minY }));
-    boxes = [...boxes]; checkAlignmentChallenge();
+  
+  function resetCurrentChallengeBoxes() {
+    boxes = JSON.parse(JSON.stringify(initialBoxConfigs[currentChallengeIndex]));
   }
-
-  function alignVerticalCenter() {
-    if (boxes.length === 0) return;
-    // Tomamos el centro del primer box como referencia
-    const centerY = boxes[0].y + boxes[0].height / 2;
-    boxes = boxes.map(box => ({ ...box, y: centerY - box.height / 2 }));
-    boxes = [...boxes]; checkAlignmentChallenge();
-  }
-
-  function alignBottom() {
-    if (boxes.length === 0) return;
-    const maxY = Math.max(...boxes.map(b => b.y + b.height));
-    boxes = boxes.map(box => ({ ...box, y: maxY - box.height}));
-    boxes = [...boxes]; checkAlignmentChallenge();
-  }
-
-   function resetBoxes() {
-    boxes = boxes.map(box => ({ ...box, x: box.initialX, y: box.initialY }));
-    alignmentChallengeCompleted = false; // Resetear el desafío
-    showAlignmentExtraInfo = false;
-    checkAlignmentChallenge(); // Re-evaluar (no debería estar completado)
-  }
-
-  // Para que el contenedor se adapte si es necesario (opcional)
-  let practiceArea: HTMLElement;
-  onMount(() => {
-    // Podrías ajustar containerWidth/Height si quieres que sea dinámico
-    // containerWidth = practiceArea.offsetWidth;
-    // containerHeight = practiceArea.offsetHeight;
-  });
 
 </script>
 
-<div class="p-6 max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-md dark:shadow-2xl space-y-6">
-  <h3 class="text-xl font-semibold text-gray-800 dark:text-gray-100">Práctica de Alineación</h3>
-  
-  <!-- Sección del Desafío -->
-  <div class="p-4 border rounded-md
-    {alignmentChallengeCompleted ? 'bg-green-50 dark:bg-green-900/50 border-green-500 dark:border-green-600' : 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'}">
-    <h4 class="text-lg font-semibold {alignmentChallengeCompleted ? 'text-green-700 dark:text-green-200' : 'text-blue-700 dark:text-blue-300'}">
-      Desafío: {!alignmentChallengeCompleted ? 'Alinea todos los bloques al borde izquierdo.' : '¡Desafío Completado!'}
-    </h4>
-    {#if alignmentChallengeCompleted && showAlignmentExtraInfo}
-      <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">
-        ¡Correcto! Alinear elementos a un borde común, como el izquierdo, crea una "línea implícita" fuerte
-        que guía la vista del usuario y aporta una sensación de orden y profesionalismo al diseño.
-        Es una de las técnicas de alineación más utilizadas.
-      </p>
-      <!-- Podrías añadir "Próximo Desafío: Alinear al Centro" -->
+<div class="p-4 md:p-6 max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-2xl space-y-4">
+  {#if $currentChallenge}
+    <h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-1">
+      Desafío de Alineación {currentChallengeIndex + 1} / {allLessonChallenges.length}
+    </h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+      {$currentChallenge.description}
+    </p>
+
+    {#if stage === 'idle'}
+      <Button variant="primary" on:click={startGame} fullWidth={true}>
+        <Play size={20} class="mr-2"/> Empezar Desafío
+      </Button>
     {/if}
-  </div>
 
-  <p class="text-sm text-gray-600 dark:text-gray-400">
-    Usa los botones para alinear los bloques de color. Observa cómo la alineación crea orden visual.
-  </p>
-
-  <!-- Área de Práctica -->
-  <div
-    bind:this={practiceArea}
-    class="relative border border-dashed border-gray-300 dark:border-gray-600 rounded-md overflow-hidden"
-    style="width: {containerWidth}px; height: {containerHeight}px;"
-  >
-    {#each boxes as box (box.id)}
-      <div
-        class="absolute {box.color} transition-all duration-300 ease-in-out flex items-center justify-center text-white text-xs font-mono rounded shadow"
-        style="left: {box.x}px; top: {box.y}px; width: {box.width}px; height: {box.height}px;"
-      >
-        {box.id}
+    {#if stage === 'playing' || stage === 'submittedIncorrect' || stage === 'submittedCorrect'}
+      <!-- Área de Práctica (sin cambios) -->
+      <div bind:this={practiceArea}
+           class="relative border border-dashed border-gray-300 dark:border-gray-600 rounded-md overflow-hidden mx-auto"
+           style="width: {containerWidth}px; height: {containerHeight}px;">
+        {#each boxes as box (box.id)}
+          <div class="absolute {box.color} transition-all duration-200 ease-in-out flex items-center justify-center text-white text-xs font-mono rounded shadow-sm"
+               style="left: {box.x}px; top: {box.y}px; width: {box.width}px; height: {box.height}px;">
+            B{box.id}
+          </div>
+        {/each}
       </div>
-    {/each}
-  </div>
 
-  <!-- Controles -->
-  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-    <button on:click={alignLeft} title="Alinear a la Izquierda" class="flex items-center justify-center space-x-2 p-3 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-md shadow transition-colors">
-      <AlignLeft size={20}/> <span>Izquierda</span>
-    </button>
-    <button on:click={alignVerticalCenter} title="Alinear al Centro Horizontal" class="flex items-center justify-center space-x-2 p-3 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-md shadow transition-colors">
-      <AlignCenterHorizontal size={20}/> <span>Centro H</span>
-    </button>
-    <button on:click={alignRight} title="Alinear a la Derecha" class="flex items-center justify-center space-x-2 p-3 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-md shadow transition-colors">
-      <AlignRight size={20}/> <span>Derecha</span>
-    </button>
-     <button on:click={alignTop} title="Alinear Arriba" class="flex items-center justify-center space-x-2 p-3 bg-indigo-500 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white rounded-md shadow transition-colors">
-      <AlignStartHorizontal size={20}/> <span>Arriba</span>
-    </button>
-    <button on:click={alignHorizontalCenter} title="Alinear al Centro Vertical" class="flex items-center justify-center space-x-2 p-3 bg-indigo-500 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white rounded-md shadow transition-colors">
-      <AlignCenterVertical size={20}/> <span>Centro V</span>
-    </button>
-    <button on:click={alignBottom} title="Alinear Abajo" class="flex items-center justify-center space-x-2 p-3 bg-indigo-500 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white rounded-md shadow transition-colors">
-      <AlignEndHorizontal size={20}/> <span>Abajo</span>
-    </button>
-    <button on:click={resetBoxes} title="Resetear Posiciones" class="col-span-full sm:col-span-1 md:col-span-2 flex items-center justify-center space-x-2 p-3 bg-gray-500 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700 text-white rounded-md shadow transition-colors">
-      <RotateCcw size={20}/> <span>Resetear</span>
-    </button>
-  </div>
+      <!-- Controles de Alineación (Solo activos en 'playing') -->
+      {#if stage === 'playing'}
+        <div class="grid grid-cols-3 gap-2 pt-2">
+          <Button variant="secondary" size="sm" on:click={() => { alignLeft(); checkChallengeSuccess();  }}> <AlignLeft size={18}/> Izquierda </Button>
+          <Button variant="secondary" size="sm" on:click={() => { alignHorizontalCenter(); checkChallengeSuccess(); }}> <AlignCenterVertical size={18}/> Centro H </Button>
+          <Button variant="secondary" size="sm" on:click={() => { alignRight(); checkChallengeSuccess(); }}> <AlignRight size={18}/> Derecha </Button>
+          <Button variant="secondary" size="sm" on:click={() => { alignTop(); checkChallengeSuccess(); }}> <AlignStartHorizontal size={18}/> Arriba </Button>
+          <Button variant="secondary" size="sm" on:click={() => { alignVerticalCenter(); checkChallengeSuccess(); }}> <AlignCenterHorizontal size={18}/> Centro V </Button>
+          <Button variant="secondary" size="sm" on:click={() => { alignBottom(); checkChallengeSuccess(); }}> <AlignEndHorizontal size={18}/> Abajo </Button>
+          <Button variant="neutral" size="sm" on:click={resetCurrentChallengeBoxes} fullWidth={true}> <RotateCcw size={18}/> Resetear Bloques </Button>
+        </div>
+      {/if}
+    {/if}
+
+    <!-- Feedback y Acciones -->
+    {#if stage === 'submittedIncorrect'}
+      <FeedbackMessage type="incorrect" message="No del todo. El objetivo es {$currentChallenge?.targetAlignment || 'el correcto'}. ¡Inténtalo de nuevo!" />
+      <Button variant="warning" on:click={handleRetry} fullWidth={true} class="mt-3">
+        <RotateCcw size={20} class="mr-2"/> Volver a Intentar
+      </Button>
+    {/if}
+
+    {#if stage === 'submittedCorrect'}
+      <FeedbackMessage type="correct" message="¡Excelente! Desafío completado." />
+      <Button variant="success" on:click={handleNextChallenge} fullWidth={true} class="mt-3">
+        {#if currentChallengeIndex < allLessonChallenges.length - 1}
+          Siguiente Desafío <ArrowRight size={20} class="ml-2"/>
+        {:else}
+          Finalizar Lección <CheckCircle size={20} class="ml-2"/>
+        {/if}
+      </Button>
+    {/if}
+    
+    <!-- Botón de Verificar (solo visible y activo en 'playing') -->
+    {#if stage === 'playing'}
+      <div in:fly={{y:10}}>
+        <Button variant="main-cta" on:click={handleSubmit} fullWidth={true} class="mt-4">Verificar Alineación</Button>
+      </div>
+    {/if}
+
+  {:else if stage === 'allChallengesComplete'}
+    <div class="text-center p-6 bg-green-50 dark:bg-green-900/50 rounded-lg">
+      <CheckCircle size={48} class="mx-auto text-green-500 dark:text-green-400 mb-4"/>
+      <h3 class="text-2xl font-semibold text-green-700 dark:text-green-200">¡Felicidades!</h3>
+      <p class="text-gray-700 dark:text-gray-300 mt-2">
+        Has completado todos los desafíos de alineación. ¡Gran trabajo!
+      </p>
+    </div>
+  {:else if !allLessonChallenges || allLessonChallenges.length === 0}
+    <p class="text-center text-gray-500 dark:text-gray-400">Cargando desafíos de alineación...</p>
+  {/if}
 </div>

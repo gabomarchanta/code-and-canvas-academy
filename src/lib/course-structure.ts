@@ -4,6 +4,9 @@ export interface Challenge {
   id: string;
   description: string;
   completed: boolean;
+  targetAlignment?: 'left' | 'h-center' | 'right' | 'top' | 'v-center' | 'bottom' | string;
+  challengeStatus?: 'idle' | 'playing' | 'submittedCorrect' | 'submittedIncorrect';
+  extraInfo?: string;
   // extraInfo?: string; // O un componente Svelte para info más rica
 }
 
@@ -50,10 +53,12 @@ export const modules: Module[] = [
             path: '/design-foundations/alignment',
             icon: AlignHorizontalJustifyStart, // Asegúrate que este es el icono que quieres
             status: 'locked', // O 'todo' si no está listo y no depende de otro
-            challenges: [ // Añadir esto también si tendrá desafíos
-                { id: 'align-left-all', description: 'Alinea todos los bloques a la izquierda', completed: false }
+            challenges: [
+                { id: 'align-c1-left', description: 'Haz clic en el botón "Izquierda" para alinear todos los bloques a su borde izquierdo común.', completed: false, targetAlignment: 'left' },
+                { id: 'align-c2-h-center', description: 'Ahora, centra todos los bloques horizontalmente usando el botón "Centro H".', completed: false, targetAlignment: 'h-center' },
+                { id: 'align-c3-top', description: 'Finalmente, alinea todos los bloques a su borde superior común usando "Arriba".', completed: false, targetAlignment: 'top' },
             ]
-        },
+        },        
     ]
   },
   {
