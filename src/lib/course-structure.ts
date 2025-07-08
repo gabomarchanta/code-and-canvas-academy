@@ -31,43 +31,43 @@ export interface Module {
 
 export const modules: Module[] = [
   {
+    id: 'html-css',
+    title: 'HTML & CSS',
+    icon: Code,
+    status: 'current',
+    lessons: [
+      { id: 'semantic-html', title: 'HTML Semántico', path: '/html-css/semantic-html', icon: Construction, status: 'current'},
+    ]
+  },
+  {
     id: 'design-foundations',
     title: 'Fundamentos del Diseño',
     icon: Palette,
-    status: 'current', // O 'unlocked' o 'active'
+    status: 'todo',
+    dependsOn: 'html-css',
     lessons: [
         {
             id: 'color-contrast',
             title: 'Contraste de Color',
             path: '/design-foundations/color-contrast',
             icon: CheckCircle,
-            status: 'current', // Debería empezar como 'current' o 'unlocked'
+            status: 'todo',
             challenges: [
                 { id: 'challenge-1-text-for-given-bg', description: 'Elige un color de texto...', completed: false }
-                // Puedes añadir más objetos de desafío aquí para el futuro
             ]
         },
         {
             id: 'alignment',
             title: 'Alineación',
             path: '/design-foundations/alignment',
-            icon: AlignHorizontalJustifyStart, // Asegúrate que este es el icono que quieres
-            status: 'locked', // O 'todo' si no está listo y no depende de otro
+            icon: AlignHorizontalJustifyStart,
+            status: 'locked',
             challenges: [
                 { id: 'align-c1-left', description: 'Haz clic en el botón "Izquierda" para alinear todos los bloques a su borde izquierdo común.', completed: false, targetAlignment: 'left' },
                 { id: 'align-c2-h-center', description: 'Ahora, centra todos los bloques horizontalmente usando el botón "Centro H".', completed: false, targetAlignment: 'h-center' },
                 { id: 'align-c3-top', description: 'Finalmente, alinea todos los bloques a su borde superior común usando "Arriba".', completed: false, targetAlignment: 'top' },
             ]
         },        
-    ]
-  },
-  {
-    id: 'html-css',
-    title: 'HTML & CSS',
-    icon: Code,
-    status: 'todo', // O 'locked' si depende del anterior
-    lessons: [
-      { id: 'semantic-html', title: 'HTML Semántico', path: '/html-css/semantic-html', icon: Construction, status: 'todo'},
     ]
   },
 ];  

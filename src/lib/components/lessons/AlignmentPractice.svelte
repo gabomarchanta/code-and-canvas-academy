@@ -221,14 +221,14 @@
 
     <!-- Feedback y Acciones -->
     {#if stage === 'submittedIncorrect'}
-      <FeedbackMessage type="incorrect" message="No del todo. El objetivo es {$currentChallenge?.targetAlignment || 'el correcto'}. ¡Inténtalo de nuevo!" />
+      <FeedbackMessage type="error" message="No del todo. El objetivo es {$currentChallenge?.targetAlignment || 'el correcto'}. ¡Inténtalo de nuevo!" />
       <Button variant="warning" on:click={handleRetry} fullWidth={true} class="mt-3">
         <RotateCcw size={20} class="mr-2"/> Volver a Intentar
       </Button>
     {/if}
 
     {#if stage === 'submittedCorrect'}
-      <FeedbackMessage type="correct" message="¡Excelente! Desafío completado." />
+      <FeedbackMessage type="success" message="¡Excelente! Desafío completado." />
       <Button variant="success" on:click={handleNextChallenge} fullWidth={true} class="mt-3">
         {#if currentChallengeIndex < allLessonChallenges.length - 1}
           Siguiente Desafío <ArrowRight size={20} class="ml-2"/>

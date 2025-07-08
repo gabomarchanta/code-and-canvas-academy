@@ -1,38 +1,35 @@
-# sv
+# Code & Canvas Academy
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+Code & Canvas Academy es una plataforma de e-learning interactiva diseñada para enseñar desarrollo web y diseño de UI, con un enfoque práctico y visual.
 
-## Creating a project
+## Sobre el Proyecto
 
-If you're seeing this, you've probably already done this step. Congrats!
+Este proyecto utiliza SvelteKit y Tailwind CSS v4 para crear una experiencia de aprendizaje moderna y reactiva. La meta es fusionar los conceptos teóricos del código (Canvas) con la aplicación práctica y estética del diseño (Code).
 
-```bash
-# create a new project in the current directory
-npx sv create
+## Características Actuales
 
-# create a new project in my-app
-npx sv create my-app
-```
+- **Curso de Fundamentos de HTML y CSS**:
+  - **Lecciones Interactivas**: Un formato de lección inspirado en Duolingo que alterna entre explicaciones y ejercicios prácticos.
+  - **Editor de Código en Vivo**: Utiliza CodeMirror para un editor de código integrado directamente en la lección.
+  - **Vista Previa en Tiempo Real**: Un `<iframe>` muestra el resultado del código del estudiante al instante.
+  - **Validación de Ejercicios**: El sistema comprueba si la solución del estudiante es correcta para poder avanzar.
+- **Curso de Fundamentos de Diseño**:
+  - **Probador de Contraste de Color**: Una herramienta para verificar la accesibilidad de las combinaciones de colores.
+  - **Práctica de Alineación**: Un ejercicio interactivo para practicar los principios de alineación en el diseño.
 
-## Developing
+## Stack Tecnológico
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+- **Framework**: SvelteKit (con Svelte 5)
+- **Estilos**: Tailwind CSS v4 (alpha)
+- **Editor de Código**: CodeMirror
+- **Iconos**: Lucide Svelte
 
-```bash
-npm run dev
+## Cómo Empezar
 
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
+1.  Clona el repositorio.
+2.  Instala las dependencias: `npm install`
+3.  Inicia el servidor de desarrollo: `npm run dev`
 
-## Building
+---
 
-To create a production version of your app:
-
-```bash
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+*Este proyecto está siendo desarrollado en colaboración con Gemini, un asistente de IA de Google.*
