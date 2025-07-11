@@ -10,11 +10,13 @@
 		Lock,
 		CheckCircle as CheckCircleIcon,
 		CircleDashed,
-		Zap as CurrentIcon
+		Zap as CurrentIcon,
+		Users
 	} from 'lucide-svelte';
 	import CodeAndCanvasLogo from '$lib/components/icons/CodeAndCanvasLogo.svelte';
 	import { progressStore } from '$lib/stores/progressStore';
 	import { theme } from '$lib/stores/themeStore';
+	import { userStore } from '$lib/stores/userStore';
 	import ThemeToggler from '$lib/components/ui/ThemeToggler.svelte';
 
 	let sidebarOpen = false;
@@ -39,6 +41,15 @@
 	$: if (browser && $page.url.pathname && sidebarOpen) {
 		if (window.innerWidth < 768) {
 			sidebarOpen = false;
+		}
+	}
+
+	// Función para alternar entre usuarios de prueba
+	function toggleUser() {
+		if ($userStore.id === 'guest') {
+			userStore.login({ id: 'user-gabo', name: 'Gabo' });
+		} else {
+			userStore.logout();
 		}
 	}
 </script>
@@ -157,7 +168,25 @@
 				</span>
 			</div>
 
-			<div class="flex items-center space-x-3">
+			<div class="flex items-center space-x-4">
+				<div class="flex items-center space-x-2">
+					<Users
+						class="text-gray-600 dark:text-gray-300"
+						size={20}
+						aria-label="Usuario actual"
+					/>
+					<span class="text-sm font-medium">{$userStore.name}</span>
+					<button
+						on:click={toggleUser}
+						class="rounded-md bg-gray-200 px-2 py-1 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+						>Cambiar</button
+					>
+				</div>
+				<div
+					class="h-6 w-px bg-gray-200 dark:bg-gray-600"
+					aria-hidden="true"
+					role="separator"
+				></div>
 				<ThemeToggler />
 			</div>
 		</header>

@@ -1,134 +1,179 @@
 <script lang="ts">
+	// Imports
 	import { browser } from '$app/environment';
-	import { theme } from '$lib/stores/themeStore';
+	import { goto } from '$app/navigation';
+	import CodeEditor from 'svelte-codemirror-editor';
 	import { html } from '@codemirror/lang-html';
+	import { oneDark } from '@codemirror/theme-one-dark';
 	import { CheckCircle, Circle, ArrowRight } from 'lucide-svelte';
-	import { untrack } from 'svelte';
-	import { semanticHtmlLesson, type Stage } from '$lib/content/semantic-html';
+	import { progressStore } from '$lib/stores/progressStore';
+	import { theme as currentTheme } from '$lib/stores/themeStore';
 	import Button from '$lib/components/ui/Button.svelte';
 	import FeedbackMessage from '$lib/components/ui/FeedbackMessage.svelte';
-	import CodeEditor from '$lib/components/ui/CodeEditor.svelte';
+	import type { PageData } from './$types';
+	import type { Stage } from '$lib/content/semantic-html';
 
-	// --- Svelte 5 State Management (Runes) ---
+	// Props y estado local
+	let { data }: { data: PageData } = $props();
+	const lesson = data.lesson;
 
 	let currentStageIndex = $state(0);
+	let code = $state('');
+	let feedback = $state<{ type: 'success' | 'error'; message: string } | null>(null);
+	let initialized = $state(false);
+	let justCompleted = $state(false);
 
-	// Create a derived state for stages that includes their completion status.
-	// This is now the single source of truth for the UI's progress display.
-	const stagesWithStatus = $derived(() =>
-		semanticHtmlLesson.map((stage, index) => ({
-			...stage,
-			status:
-				index < currentStageIndex
-					? 'completed'
-					: index === currentStageIndex
-						? 'current'
-						: 'pending'
-		}))
+	// Estado Derivado
+	const challengeStatuses = $derived(
+		$progressStore
+			.find((m) => m.id === lesson.moduleId)
+			?.lessons.find((l) => l.id === lesson.id)?.challenges ?? []
 	);
 
-	let currentStage = $derived(semanticHtmlLesson[currentStageIndex]);
-
-	// Initialize code imperatively. It will be updated by navigation handlers.
-	let code = $state(
-		semanticHtmlLesson[0].type === 'exercise' ? semanticHtmlLesson[0].initialCode : ''
+	const completed = $derived(
+		lesson.stages.map((stage: Stage) => {
+			const challenge = challengeStatuses.find((c) => c.id === stage.id);
+			return challenge ? challenge.completed : false;
+		})
 	);
-	let feedback: { type: 'success' | 'error'; message: string } | null = $state(null);
-	let srcDoc = $state('');
 
-	// --- Effects ---
+	const firstIncompleteIndex = $derived(completed.findIndex((c: boolean) => !c));
 
-	// This effect ONLY handles the preview pane, not the editor's content.
-	$effect(() => {
-		const isDark = $theme === 'dark';
-		const textColor = isDark ? '#e5e7eb' : '#111827';
-		const styles = `<style>body { font-family: sans-serif; color: ${textColor}; }</style>`;
-		srcDoc = styles + code;
-	});
-
-	$effect(() => {
-		// This effect resets feedback when the user starts typing again.
-		// By reading `code` we subscribe to its changes.
-		// By using `untrack` we can read `feedback` without subscribing to it,
-		// which prevents this effect from running when `handleCheck` sets the feedback.
-		code; // This creates the dependency
-		if (untrack(() => feedback)) {
-			feedback = null;
-		}
-	});
-
-	// --- Event Handlers ---
-
-	function updateCodeForStage(index: number) {
-		const stage = semanticHtmlLesson[index];
-		if (stage.type === 'exercise') {
-			code = stage.initialCode;
+	function syncCodeWithStage(index: number) {
+		const stage = lesson.stages[index];
+		if (stage?.type === 'exercise') {
+			// Buscar si hay una solución guardada en el progreso
+			const challenge = challengeStatuses.find((c) => c.id === stage.id);
+			if (challenge && challenge.completed && challenge.code) {
+				code = challenge.code;
+			} else {
+				code = stage.initialCode;
+			}
 		} else {
 			code = '';
 		}
 		feedback = null;
+
+		// Actualizar la vista previa inmediatamente
+		const isDark = $currentTheme === 'dark';
+		const textColor = isDark ? '#e5e7eb' : '#111827';
+		const styles = `<style>body { font-family: sans-serif; color: ${textColor}; }</style>`;
+		srcDoc = styles + code;
+	}
+
+	// Efectos
+	$effect(() => {
+		// Se ejecuta una vez para establecer la posición inicial
+		if (browser && !initialized) {
+			const targetIndex = firstIncompleteIndex === -1 ? lesson.stages.length - 1 : firstIncompleteIndex;
+			currentStageIndex = targetIndex;
+			syncCodeWithStage(targetIndex);
+			initialized = true;
+		}
+	});
+
+	$effect(() => {
+		// Gestiona la navegación cuando el progreso cambia.
+		if (!initialized) return;
+
+		// Si hay feedback de éxito, no avanzar automáticamente
+		if (feedback?.type === 'success') return;
+
+		const isLessonComplete = completed.every((c) => c);
+		const isLastStage = currentStageIndex === lesson.stages.length - 1;
+
+		// Solo redirigir si el usuario acaba de completar la lección
+		if (isLessonComplete && isLastStage && justCompleted) {
+			progressStore.completeLesson(lesson.moduleId, lesson.id);
+			justCompleted = false;
+			goto('/');
+			return;
+		}
+
+		// Solo forzar navegación si la etapa actual NO está completada
+		if (!completed[currentStageIndex] && firstIncompleteIndex > -1 && currentStageIndex !== firstIncompleteIndex) {
+			currentStageIndex = firstIncompleteIndex;
+			syncCodeWithStage(firstIncompleteIndex);
+		}
+	});
+
+	const currentStage = $derived(lesson.stages[currentStageIndex]);
+
+	// Manejadores de eventos
+	function handleAdvance() {
+		// Si hay feedback de éxito, primero lo limpiamos y luego avanzamos
+		if (feedback?.type === 'success') {
+			feedback = null;
+		}
+		// Si estamos en la última etapa y la lección no estaba completa, marcamos justCompleted
+		if (currentStageIndex === lesson.stages.length - 1 && !completed.every((c) => c)) {
+			justCompleted = true;
+		}
+		progressStore.completeStage(lesson.moduleId, lesson.id, currentStage.id);
 	}
 
 	function handleCheck() {
-		if (currentStage.type !== 'exercise') return;
-		const normalizedCode = code.trim().replace(/\s+/g, ' ');
-		const normalizedSolution = currentStage.solution.trim().replace(/\s+/g, ' ');
+		if (currentStage?.type !== 'exercise') return;
+		const solution = currentStage.solution.replace(/\s/g, '');
+		const userCode = code.replace(/\s/g, '');
 
-		if (normalizedCode === normalizedSolution) {
-			feedback = { type: 'success', message: '¡Excelente! Código correcto.' };
+		if (userCode === solution) {
+			feedback = { type: 'success', message: '¡Correcto! ¡Bien hecho!' };
+			progressStore.completeStage(lesson.moduleId, lesson.id, currentStage.id);
 		} else {
 			feedback = { type: 'error', message: 'Parece que algo no está bien. ¡Inténtalo de nuevo!' };
 		}
 	}
 
-	function handleNext() {
-		if (currentStageIndex < semanticHtmlLesson.length - 1) {
-			currentStageIndex += 1;
-			updateCodeForStage(currentStageIndex);
-		} else {
-			feedback = { type: 'success', message: '¡Felicidades, has completado la lección!' };
-		}
-	}
-
-	function handleStageSelection(index: number) {
-		if (stagesWithStatus()[index].status !== 'pending') {
-			currentStageIndex = index;
-			updateCodeForStage(index);
-		}
-	}
+	// Preview Pane
+	let srcDoc = $derived('');
+	$effect(() => {
+		const isDark = $currentTheme === 'dark';
+		const textColor = isDark ? '#e5e7eb' : '#111827';
+		const styles = `<style>body { font-family: sans-serif; color: ${textColor}; }</style>`;
+		// Forzar actualización también cuando cambia feedback
+		const _ = feedback;
+		srcDoc = styles + code;
+	});
 </script>
 
-<svelte:head>
-	<title>{currentStage?.title || 'Lección'} - Code & Canvas</title>
-</svelte:head>
-
 <div class="lesson-layout">
+	<!-- Progress Sidebar -->
 	<aside
-		class="progress-sidebar hidden border-r border-gray-200 bg-gray-50 p-8 dark:border-gray-700 dark:bg-gray-900 lg:block"
+		class="progress-sidebar hidden border-r border-gray-200 bg-white/50 p-4 dark:border-gray-700 dark:bg-gray-800/50 md:block"
 	>
-		<h2 class="text-xl font-bold mb-6">HTML Semántico</h2>
-		<nav>
-			<ul>
-				{#each stagesWithStatus() as stage, index (stage.id)}
+		<h2 class="px-4 pt-4 text-xl font-bold">{lesson.title}</h2>
+		<nav class="p-4">
+			<ul class="space-y-2">
+				{#each lesson.stages as stage, i}
 					<li>
 						<button
-							class="flex w-full items-center rounded-lg p-2 text-left transition-colors {stage.status ===
-							'current'
-								? 'bg-blue-100 dark:bg-slate-800'
-								: 'hover:bg-gray-200 dark:hover:bg-slate-800'}"
-							disabled={stage.status === 'pending'}
-							onclick={() => handleStageSelection(index)}
+							class="flex w-full items-center rounded-md p-3 text-left transition-colors"
+							class:bg-blue-100={i === currentStageIndex}
+							class:dark:bg-blue-900={i === currentStageIndex}
+							class:hover:bg-gray-200={i !== currentStageIndex && (completed[i] || i <= firstIncompleteIndex)}
+							class:dark:hover:bg-gray-700={ i !== currentStageIndex && (completed[i] || i <= firstIncompleteIndex) }
+							class:opacity-50={!completed[i] && i > firstIncompleteIndex}
+							class:cursor-not-allowed={!completed[i] && i > firstIncompleteIndex}
+							onclick={() => {
+								currentStageIndex = i;
+								syncCodeWithStage(i);
+							}}
+							disabled={!completed[i] && i > firstIncompleteIndex}
 						>
-							{#if stage.status === 'completed'}
-								<CheckCircle class="mr-3 flex-shrink-0 text-green-500" />
+							{#if completed[i]}
+								<CheckCircle size={20} class="flex-shrink-0 text-green-500" />
 							{:else}
 								<Circle
-									class="mr-3 flex-shrink-0 {stage.status === 'current'
-										? 'text-blue-600'
-										: 'text-gray-300'}"
+									size={20}
+									class={
+										i === currentStageIndex
+											? 'text-blue-500'
+											: 'text-gray-400'
+									}
 								/>
 							{/if}
-							<span class:font-bold={stage.status === 'current'}>{stage.title}</span>
+							<span class="ml-3">{stage.title}</span>
 						</button>
 					</li>
 				{/each}
@@ -136,41 +181,41 @@
 		</nav>
 	</aside>
 
-	<!-- Columna Principal de Contenido -->
+	<!-- Main Content Column -->
 	<main class="content-main overflow-y-auto">
 		<div class="p-8">
 			<div class="instructions-area">
-				<h1 class="mb-4 text-3xl font-bold">{currentStage.title}</h1>
+				<h1 class="mb-4 text-3xl font-bold">{currentStage?.title}</h1>
 				<div class="prose max-w-none dark:prose-invert">
-					{@html currentStage.type === 'explanation'
-						? currentStage.content
-						: currentStage.instructions}
+					{@html currentStage?.type === 'explanation' ? currentStage.content : currentStage?.instructions}
 				</div>
 			</div>
 
-			{#if currentStage.type === 'exercise'}
+			{#if currentStage?.type === 'exercise'}
 				<div class="editor-area">
-					<CodeEditor lang={html()} bind:value={code} />
+					<CodeEditor
+						lang={html()}
+						bind:value={code}
+						theme={$currentTheme === 'dark' ? oneDark : undefined}
+						extensions={[$currentTheme === 'dark' ? oneDark : []]}
+					/>
 				</div>
 			{/if}
 
-			<!-- Bloque de acciones DENTRO del contenido desplazable -->
 			<div class="actions-footer mt-8">
-				<!-- Contenedor de Feedback con altura mínima para reservar espacio -->
 				<div class="feedback-container min-h-16">
 					{#if feedback}
 						<FeedbackMessage type={feedback.type} message={feedback.message} />
 					{/if}
 				</div>
 
-				<!-- Botones -->
-				{#if currentStage.type === 'explanation'}
-					<Button onclick={handleNext} fullWidth={true}>
+				{#if currentStage?.type === 'explanation'}
+					<Button onclick={handleAdvance} fullWidth={true}>
 						Continuar
 						<ArrowRight class="ml-2" size={18} />
 					</Button>
 				{:else if feedback?.type === 'success'}
-					<Button onclick={handleNext} fullWidth={true} variant="success">
+					<Button onclick={handleAdvance} fullWidth={true} variant="success">
 						Continuar
 						<ArrowRight class="ml-2" size={18} />
 					</Button>
@@ -184,18 +229,9 @@
 		</div>
 	</main>
 
-	<div
-		class="preview-pane hidden border-l border-gray-200 bg-gray-50 p-8 dark:border-gray-700 dark:bg-gray-900 lg:block"
-	>
-		<div
-			class="preview-wrapper h-full rounded-lg border border-gray-200 bg-white dark:border-gray-700"
-		>
-			<iframe
-				srcdoc={srcDoc}
-				class="h-full w-full bg-white dark:bg-gray-800"
-				title="Vista Previa del Código"
-			></iframe>
-		</div>
+	<!-- Preview Pane -->
+	<div class="preview-pane">
+		<iframe title="Vista previa del código" sandbox="allow-scripts" srcdoc={srcDoc} class="h-full w-full rounded-lg bg-white dark:bg-gray-800"></iframe>
 	</div>
 </div>
 
@@ -203,15 +239,26 @@
 	.lesson-layout {
 		display: grid;
 		grid-template-columns: 280px 1fr 1fr;
-		height: 100%;
-		background-color: var(--color-bg-primary);
+		height: calc(100vh - 4rem /* altura del header */);
 	}
 
 	@media (max-width: 1024px) {
 		.lesson-layout {
 			grid-template-columns: 1fr;
 		}
+		.preview-pane {
+			display: none;
+		}
 	}
+    
+    @media (max-width: 768px) {
+        .progress-sidebar {
+            display: none;
+        }
+        .lesson-layout {
+            grid-template-columns: 1fr;
+        }
+    }
 
 	.editor-area {
 		margin-top: 2rem; /* mt-8 */
@@ -220,6 +267,7 @@
 		padding: 1rem; /* p-4 */
 	}
 
+	/* svelte-ignore css_unused_selector */
 	:is(html.dark) .editor-area {
 		background-color: rgb(31 41 55 / 0.5); /* dark:bg-gray-800/50 */
 	}
@@ -236,7 +284,7 @@
 	}
 	/* --- FIN: Ajuste de altura para CodeMirror --- */
 
-	.progress-sidebar nav button {
-		outline: none;
+	.preview-pane {
+		padding: 2rem; /* p-8 */
 	}
-</style> 
+</style>

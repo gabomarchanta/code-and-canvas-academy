@@ -54,5 +54,66 @@ export const semanticHtmlLesson: Stage[] = [
 		`,
 		initialCode: `<h1>Mi Primer Sitio Web</h1>`,
 		solution: `<h1>Mi Primer Sitio Web</h1>\n<p>¡Bienvenido a mi sitio!</p>`
+	},
+	{
+		id: 'lists-intro',
+		type: 'explanation',
+		title: 'Listas',
+		content: `
+			<p>A menudo, querrás agrupar elementos en una lista. HTML nos da dos tipos principales: ordenadas (con números) y desordenadas (con viñetas).</p>
+			<p>Para una lista desordenada, usamos la etiqueta <code>&lt;ul&gt;</code> (unordered list). Cada elemento dentro de la lista se envuelve en una etiqueta <code>&lt;li&gt;</code> (list item).</p>
+			<pre><code>&lt;ul&gt;
+  &lt;li&gt;Primer elemento&lt;/li&gt;
+  &lt;li&gt;Segundo elemento&lt;/li&gt;
+&lt;/ul&gt;</code></pre>
+			<p>Es como hacer una lista de la compra. ¡Vamos a intentarlo!</p>
+		`
+	},
+	{
+		id: 'lists-exercise',
+		type: 'exercise',
+		title: 'Ejercicio de Listas',
+		instructions: `
+			<p>Ahora te toca a ti. Crea una lista de la compra.</p>
+			<p><strong>Tu tarea:</strong> Crea una lista desordenada (<code>&lt;ul&gt;</code>) con dos elementos (<code>&lt;li&gt;</code>) dentro: "Leche" y "Pan".</p>
+		`,
+		initialCode: `<h1>Mi Lista de la Compra</h1>`,
+		solution: `<h1>Mi Lista de la Compra</h1>\n<ul>\n  <li>Leche</li>\n  <li>Pan</li>\n</ul>`
+	},
+	{
+		id: 'links-intro',
+		type: 'explanation',
+		title: 'Enlaces',
+		content: `
+			<p>¡La web no sería la web sin los enlaces! Para crear un enlace, usamos la etiqueta de ancla <code>&lt;a&gt;</code>.</p>
+			<p>La etiqueta de ancla tiene un atributo especial llamado <code>href</code> (hypertext reference), que le dice al navegador a dónde ir cuando se hace clic en el enlace.</p>
+			<pre><code>&lt;a href="https://www.google.com"&gt;Ir a Google&lt;/a&gt;</code></pre>
+			<p>El texto entre las etiquetas <code>&lt;a&gt;</code> y <code>&lt;/a&gt;</code> es lo que el usuario verá y en lo que podrá hacer clic.</p>
+		`
+	},
+	{
+		id: 'links-exercise',
+		type: 'exercise',
+		title: 'Ejercicio de Enlaces',
+		instructions: `
+			<p>Vamos a hacer que un elemento de nuestra lista sea un enlace.</p>
+			<p><strong>Tu tarea:</strong> Convierte el elemento de lista "Pan" en un enlace que apunte a <code>#panaderia</code>. El texto del enlace debe seguir siendo "Pan".</p>
+		`,
+		initialCode: `<h1>Mi Lista de la Compra</h1>
+<ul>
+  <li>Leche</li>
+  <li>Pan</li>
+</ul>`,
+		solution: `<h1>Mi Lista de la Compra</h1>\n<ul>\n  <li>Leche</li>\n  <li><a href="#panaderia">Pan</a></li>\n</ul>`
+	},
+	{
+		id: 'conclusion',
+		type: 'explanation',
+		title: '¡Felicidades!',
+		content: `
+			<p>¡Has completado la lección sobre los fundamentos del HTML Semántico!</p>
+			<p>Has aprendido a usar encabezados, párrafos, listas y enlaces. Estas son las herramientas básicas que necesitarás para estructurar cualquier página web.</p>
+			<p>Recuerda, usar la etiqueta correcta para el contenido correcto no solo es una buena práctica, sino que también hace que la web sea más accesible para todos. ¡Sigue así!</p>
+		`
 	}
 ]; 

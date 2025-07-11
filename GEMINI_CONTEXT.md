@@ -13,10 +13,15 @@ Este documento resume la arquitectura, las decisiones de diseño y los puntos cr
 - `src/routes/html-css/semantic-html/+page.svelte`:
   - **Función**: Es el componente principal de una lección interactiva.
   - **Estructura**: Layout de 3 columnas (Progreso, Contenido, Vista Previa).
-  - **Lógica de Svelte 5**: Utiliza **Runes**. La reactividad se basa en `$state` para los estados primarios (ej. `currentStageIndex`, `code`) y `$derived` para estados computados (ej. `currentStage`). Las acciones del usuario (comprobar, continuar) se manejan en funciones de evento que actualizan el estado de forma imperativa. Esto es más simple que usar `$effect` para todo.
+  - **Lógica de Svelte 5**: Utiliza **Runes**. La reactividad se basa en `$state` para los estados primarios (ej. `currentStageIndex`, `code`) y `$derived` para estados computados (ej. `currentStage`).
+  - **Navegación**: El usuario puede navegar libremente por cualquier challenge completado desde la barra lateral. Solo se fuerza la navegación automática al siguiente challenge cuando el usuario completa uno nuevo.
+  - **Comprobación de ejercicios**: Al resolver correctamente un ejercicio, se muestra un mensaje de éxito y el botón "Continuar". Solo al pulsar "Continuar" se avanza.
+  - **Editor**: Siempre muestra el `initialCode` del challenge, incluso si ya fue completado.
+  - **Vista previa**: El `<iframe>` de la vista previa nunca queda vacío; se actualiza inmediatamente al cambiar de etapa o al comprobar el código.
+  - **Redirección**: Solo se redirige automáticamente a la home (`/`) cuando el usuario completa la lección desde la última etapa. Si entra manualmente a una lección ya completada, puede revisarla sin ser expulsado.
 
 - `src/lib/content/semantic-html.ts`:
-  - **Función**: Define la estructura de datos para los cursos y sus lecciones/etapas. Es la "fuente de la verdad" para el contenido de la lececión.
+  - **Función**: Define la estructura de datos para los cursos y sus lecciones/etapas. Es la "fuente de la verdad" para el contenido de la lección.
 
 - `src/lib/stores/themeStore.ts`:
   - **Función**: Gestiona el estado del tema (claro/oscuro) en toda la aplicación.
@@ -42,12 +47,15 @@ Este documento resume la arquitectura, las decisiones de diseño y los puntos cr
   - **Problema: El editor no se actualiza, los botones no reaccionan.**
     1.  La causa probable es un `$effect` demasiado complejo o una mala gestión del estado.
     2.  **Solución Preferida**: Simplificar. Usar `$state` para lo mínimo indispensable. Derivar todo lo posible con `$derived`. Para acciones que cambian el estado (como pasar a la siguiente etapa), actualiza el `$state` de forma imperativa dentro del manejador de eventos (`onclick`). Por ejemplo, actualiza el `currentStageIndex` y, en la misma función, actualiza el contenido del editor de código (`code = ...`).
+    3.  **Navegación**: Solo forzar la navegación automática si el usuario está en una etapa incompleta. Permitir navegación libre por challenges completados.
+    4.  **Redirección**: Solo redirigir automáticamente al finalizar la lección desde la última etapa, no al entrar manualmente a una lección ya completada.
 
 - **Al depurar el `<iframe>` de la vista previa...**
   - **Problema: El estilo (ej. modo oscuro) no se aplica dentro del `iframe`.**
     1.  Recuerda que un `<iframe>` es un documento HTML completamente separado.
     2.  La solución es inyectar una etiqueta `<style>` o un `<link>` dentro del `head` del `iframe`.
-    3.  La reactividad se consigue haciendo que la función que actualiza el `iframe` se suscriba a los cambios del `themeStore`.
+    3.  La reactividad se consigue haciendo que la función que actualiza el `iframe` se suscriba a los cambios del `themeStore` y del código fuente (`code`).
+    4.  **Vista previa nunca vacía**: Asegúrate de actualizar el contenido del `iframe` también al cambiar de etapa, aunque el usuario no edite nada.
 
 - **Al depurar Layouts con Scroll...**
   - **Problema: Un contenedor no se desplaza y en su lugar hace que toda la página se desplace.**
